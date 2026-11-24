@@ -1,4 +1,5 @@
-/* FastStore - store PS4 pour GoldHEN. Domaine public. */
+/* FastStore - store PS4 pour GoldHEN. Domaine public. */#include <stdint.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
