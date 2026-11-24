@@ -1,0 +1,42 @@
+name: build
+on: [push, workflow_dispatch]
+jobs:
+  pkg:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Outils
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl build-essential cmake pkg-config fonts-dejavu-core imagemagick dotnet-sdk-8.0
+      - name: Toolchain
+        run: |
+          curl -L -o /tmp/p.deb https://github.com/PacBrew/pacbrew-pacman/releases/latest/download/pacbrew-pacman.deb
+          sudo dpkg -i /tmp/p.deb || sudo apt-get -f install -y
+          sudo pacbrew-pacman -Sy --noconfirm
+          sudo pacbrew-pacman -S --noconfirm ps4-openorbis ps4-openorbis-portlibs
+          echo "OO_PS4_TOOLCHAIN=/opt/pacbrew/ps4/openorbis" >> $GITHUB_ENV
+      - name: LibOrbisPkg
+        run: |
+          git clone --depth 1 https://github.com/maxton/LibOrbisPkg
+          dotnet publish LibOrbisPkg/LibOrbisPkg -c Release -o /opt/lop
+      - name: cJSON
+        run: |
+          git clone --depth 1 https://github.com/DaveGamble/cJSON external/cJSON
+      - name: Compile
+        run: make
+      - name: Pkg
+        run: |
+          mkdir -p stage/assets
+          cp /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf stage/assets/font.ttf
+          printf 'APP_TYPE=fpkg\nAPP_VER=01.00\nCATEGORY=gd\nCONTENT_ID=IV0000-FST000001_00-FASTSTORE0000000\nTITLE=FastStore\nTITLE_ID=FST000001\nVERSION=01.00\n' > stage/param.sfo
+          convert -size 512x512 gradient:'#0e1016-#28beff' -gravity center -pointsize 96 -fill white -annotate 0 FS stage/icon0.png
+          $OO_PS4_TOOLCHAIN/bin/linux/create-gp4 --content-id=IV0000-FST000001_00-FASTSTORE0000000 --out=pkg.gp4 \
+            --files="sce_sys/param.sfo;stage/param.sfo;sce_sys/icon0.png;stage/icon0.png;eboot.bin;eboot.bin;assets/font.ttf;stage/assets/font.ttf"
+          dotnet /opt/lop/pkg_build.dll pkg.gp4 out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: faststore-pkg
+          path: |
+            out/*.pkg
+            eboot.bin
