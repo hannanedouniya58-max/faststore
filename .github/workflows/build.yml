@@ -1,61 +1,11 @@
 name: build
 on: [push, workflow_dispatch]
-
 jobs:
   pkg:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
-      - name: Outils
-        run: |
-          set -x
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --fix-missing \
-            curl build-essential cmake pkg-config fonts-dejavu-core imagemagick unzip
-
-      - name: Toolchain
-        run: |
-          set -x
-          URL=$(curl -sL https://api.github.com/repos/PacBrew/pacbrew-pacman/releases/latest | grep -oE 'https://[^"]+\.deb' | head -n1)
-          echo "paquet: $URL"
-          curl -L -o /tmp/p.deb "$URL"
-          sudo dpkg -i /tmp/p.deb || sudo apt-get -f install -y
-          sudo pacbrew-pacman -Sy --noconfirm
-          sudo pacbrew-pacman -S --noconfirm ps4-openorbis ps4-openorbis-portlibs
-          echo "OO_PS4_TOOLCHAIN=/opt/pacbrew/ps4/openorbis" >> $GITHUB_ENV
-
-      - name: Verifier la toolchain
-        run: ls -la /opt/pacbrew/ps4/openorbis/bin/linux/ || true
-
-      - name: cJSON
-        run: git clone --depth 1 https://github.com/DaveGamble/cJSON external/cJSON
-
-      - name: Compile
-        run: make
-
-      - name: Pkg
-        run: |
-          set -x
-          mkdir -p stage/assets out
-          cp /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf stage/assets/font.ttf
-          printf 'APP_TYPE=fpkg\nAPP_VER=01.00\nCATEGORY=gd\nCONTENT_ID=IV0000-FST000001_00-FASTSTORE0000000\nTITLE=FastStore\nTITLE_ID=FST000001\nVERSION=01.00\n' > stage/param.sfo
-          convert -size 512x512 gradient:'#0e1016-#28beff' -gravity center -pointsize 96 -fill white -annotate 0 FS stage/icon0.png
-          $OO_PS4_TOOLCHAIN/bin/linux/create-gp4 --content-id=IV0000-FST000001_00-FASTSTORE0000000 --out=pkg.gp4 \
-            --files="sce_sys/param.sfo;stage/param.sfo;sce_sys/icon0.png;stage/icon0.png;eboot.bin;eboot.bin;assets/font.ttf;stage/assets/font.ttf"
-          if [ -x "$OO_PS4_TOOLCHAIN/bin/linux/liborbispkg" ]; then
-            $OO_PS4_TOOLCHAIN/bin/linux/liborbispkg pkg.gp4 out
-          else
-            git clone --depth 1 https://github.com/maxton/LibOrbisPkg
-            CS=$(find LibOrbisPkg -name '*.csproj' | grep -iE 'pkg|cli' | head -n1)
-            dotnet publish "$CS" -c Release -o /opt/lop
-            dotnet /opt/lop/*.dll pkg.gp4 out
-          fi
-
+      - run: bash build.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
