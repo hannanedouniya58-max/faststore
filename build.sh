@@ -3,19 +3,28 @@ set -eux
 
 sudo apt-get update
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --fix-missing \
-  curl build-essential cmake pkg-config fonts-dejavu-core imagemagick unzip file dotnet-sdk-8.0 || true
+  curl build-essential cmake pkg-config fonts-dejavu-core imagemagick unzip file zstd dotnet-sdk-8.0 || true
 
 API=https://api.github.com/repos/PacBrew/pacbrew-pacman/releases/latest
-JSON=$(curl -sL "$API")
-echo "$JSON" | head -c 500
+JSON=$(curl -sL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$API")
+echo "$JSON" | head -c 800
 ASSETS=$(echo "$JSON" | grep -oE '"browser_download_url": "[^"]+"' | cut -d'"' -f4 || true)
 echo "$ASSETS"
 
 DEB=$(echo "$ASSETS" | grep -iE '\.deb$' | head -n1 || true)
-TAR=$(echo "$ASSETS" | grep -iE '\.(tar\.gz|tgz|tar\.xz)$' | head -n1 || true)
+TAR=$(echo "$ASSETS" | grep -iE '\.(tar\.gz|tgz|tar\.xz|tar\.zst)$' | head -n1 || true)
+
+if [ -z "$DEB" ] && [ -z "$TAR" ]; then
+  for U in \
+    "https://github.com/PacBrew/pacbrew-pacman/releases/latest/download/pacbrew-pacman_1.0.0_amd64.deb" \
+    "https://github.com/PacBrew/pacbrew-pacman/releases/latest/download/pacbrew-pacman_1.0_amd64.deb"
+  do
+    if curl -fsL -o /tmp/p.deb "$U"; then DEB="$U"; break; fi
+  done
+fi
 
 if [ -n "$DEB" ]; then
-  curl -fL -o /tmp/p.deb "$DEB"
+  [ -f /tmp/p.deb ] || curl -fL -o /tmp/p.deb "$DEB"
   sudo dpkg -i /tmp/p.deb || sudo apt-get -f install -y
 elif [ -n "$TAR" ]; then
   curl -fL -o /tmp/p.tar "$TAR"
